@@ -5,10 +5,10 @@
 #include <TFT_eSPI.h>
 
 
-const char* ssid     = "HJV1";
-const char* password = "kaninbananerne";
+const char* ssid     = "xxx";
+const char* password = "xxx";
 char path[] = "/ws/controller";
-char host[] = "192.168.1.121";
+char host[] = "192.168.1.xxx";
 
 WebSocketClient webSocketClient;
 WiFiClient client;
