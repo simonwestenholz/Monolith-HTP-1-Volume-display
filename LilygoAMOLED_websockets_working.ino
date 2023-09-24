@@ -5,10 +5,10 @@
 #include <TFT_eSPI.h>
 
 
-const char* ssid     = "xxx";
-const char* password = "xxx";
+const char* ssid     = "xxx"; // Wifi network
+const char* password = "xxx"; // Wifi Password
 char path[] = "/ws/controller";
-char host[] = "192.168.1.xxx";
+char host[] = "192.168.1.xxx"; // IP of the HTP-1
 
 WebSocketClient webSocketClient;
 WiFiClient client;
@@ -22,13 +22,13 @@ TFT_eSprite sprite = TFT_eSprite(&tft);
 bool deb = 0;
 bool deb2 = 0;
 byte bright = 5;
-byte brightness[7] = { 7, 20, 25, 30, 50, 55, 60 };
+byte brightness[7] = { 7, 20, 25, 30, 50, 55, 60 }; // The different brightness levels. Will take some tuning for you env.
 bool ledON = false;
 
 String vol = "";
 int volume;
 unsigned long lastTime = 0;
-unsigned long timerDelay2 = 3000;
+unsigned long timerDelay = 3000; // Time the display lights up after a volume change
 
 void setup() {
   Serial.begin(115200);
@@ -155,14 +155,13 @@ void loop() {
       // Hang on disconnect.
     }
   }
-  
-  if ((millis() - lastTime) < timerDelay2){
+
+  // Display brightness on volume change
+  if ((millis() - lastTime) < timerDelay){
     lcd_brightness(brightness[bright]);
-  } else if ((millis() - lastTime) > timerDelay2) {
+  } else if ((millis() - lastTime) > timerDelay) {
     lcd_brightness(brightness[0]);
   }
 
-  // Wait to fully let the client disconnect
-  // delay(3000);
   
 }
