@@ -8,6 +8,7 @@ Connects to the HTP-1 via WebSocket and displays real-time volume, input source,
 
 - **Real-time volume display** with configurable reference level offset
 - **4 display modes**: Volume Only, Volume + Source, Volume + Codec, Full Status
+- **Configurable layout sizes** — per-mode volume size (1–5) and label size (1–3) via web UI
 - **6 color themes**: White, Green, Amber, Blue, Red, Cyan
 - **Input name mapping** — assign friendly names to HTP-1 input codes (e.g. `h1` → "Apple TV") via the web UI
 - **Mute/standby indicators** — red MUTE overlay and STANDBY label
@@ -32,12 +33,14 @@ Connects to the HTP-1 via WebSocket and displays real-time volume, input source,
 
 Cycle modes with a long press on Button 1, or select from the web UI.
 
-| Mode | Layout |
-|------|--------|
-| **Volume Only** | Full-screen volume number (7-segment font, 240px tall) |
-| **Volume + Source** | Input name at top, volume below |
-| **Volume + Codec** | Volume at top, codec/format at bottom (auto-shrinks if too wide) |
-| **Full Status** | Input + codec on top row, volume in center, surround mode + listening format on bottom row |
+| Mode | Default Vol/Label | Layout |
+|------|-------------------|--------|
+| **Volume Only** | 5 / — | Full-screen volume number (7-segment font) |
+| **Volume + Source** | 4 / 2 | Input name at top, volume below |
+| **Volume + Codec** | 4 / 2 | Volume at top, codec/format at bottom (auto-shrinks if too wide) |
+| **Full Status** | 4 / 1 | Input + codec on top row, volume in center, surround mode + listening format on bottom row |
+
+Volume and label sizes are configurable per mode via the web UI. Font 7 (volume) sizes map to 48px increments (size 5 = 240px full height). Font 4 (labels) sizes map to ~26px increments.
 
 All modes show a red **MUTE** label when muted and a **STANDBY** label when the HTP-1 is powered off. If input name mappings are configured, friendly names are shown instead of raw HTP-1 codes in all modes that display the source.
 
@@ -101,7 +104,7 @@ The built-in web UI provides:
 - **WiFi settings** — SSID and password
 - **HTP-1 connection** — IP address, port, volume offset
 - **Input names** — map HTP-1 input codes to friendly display names (up to 8 mappings)
-- **Display controls** — brightness slider, auto-dim timeout and brightness, color theme picker, display mode selector
+- **Display controls** — brightness slider, auto-dim timeout and brightness, display mode selector, per-mode volume/label size sliders, color theme picker
 - **Power management** — sleep enable/disable and timeout
 - **Firmware update** — drag-and-drop `.bin` upload with progress bar
 
