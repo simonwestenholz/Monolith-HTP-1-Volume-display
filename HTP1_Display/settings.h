@@ -48,6 +48,10 @@ struct AppSettings {
     ColorTheme color_theme;
     DisplayMode display_mode;
 
+    // Per-mode display element sizes (indexed by DisplayMode)
+    uint8_t vol_sizes[MODE_COUNT];    // Font 7 textSize: 1-5
+    uint8_t label_sizes[MODE_COUNT];  // Font 4 textSize: 1-3
+
     // Power
     bool sleep_enabled;
     uint32_t sleep_timeout;     // ms

@@ -52,6 +52,14 @@ static void handleGetSettings(AsyncWebServerRequest *req) {
     doc["theme"]    = (uint8_t)cfg->color_theme;
     doc["sleepen"]  = cfg->sleep_enabled;
     doc["sleeptm"]  = cfg->sleep_timeout;
+
+    JsonArray vs = doc["volSizes"].to<JsonArray>();
+    JsonArray ls = doc["labelSizes"].to<JsonArray>();
+    for (int i = 0; i < MODE_COUNT; i++) {
+        vs.add(cfg->vol_sizes[i]);
+        ls.add(cfg->label_sizes[i]);
+    }
+
     doc["fw"]       = FW_VERSION;
 
     // Input names
@@ -124,6 +132,17 @@ static void handlePostSettingsRequest(AsyncWebServerRequest *req) {
         cfg->sleep_enabled = doc["sleepen"];
     if (doc["sleeptm"].is<int>())
         cfg->sleep_timeout = doc["sleeptm"];
+
+    if (doc["volSizes"].is<JsonArray>()) {
+        JsonArray vs = doc["volSizes"];
+        for (int i = 0; i < MODE_COUNT && i < (int)vs.size(); i++)
+            cfg->vol_sizes[i] = constrain(vs[i].as<int>(), 1, 5);
+    }
+    if (doc["labelSizes"].is<JsonArray>()) {
+        JsonArray ls = doc["labelSizes"];
+        for (int i = 0; i < MODE_COUNT && i < (int)ls.size(); i++)
+            cfg->label_sizes[i] = constrain(ls[i].as<int>(), 1, 3);
+    }
 
     // Input names
     if (doc["inputs"].is<JsonArray>()) {

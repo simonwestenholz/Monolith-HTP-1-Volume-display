@@ -20,6 +20,11 @@ static void apply_defaults(AppSettings &s) {
     s.sleep_timeout    = SLEEP_TIMEOUT_MS;
     s.input_name_count = 0;
     memset(s.input_names, 0, sizeof(s.input_names));
+
+    // Per-mode display element sizes
+    // {Volume Only, Vol+Source, Vol+Codec, Full Status}
+    s.vol_sizes[0] = 5;  s.vol_sizes[1] = 4;  s.vol_sizes[2] = 4;  s.vol_sizes[3] = 4;
+    s.label_sizes[0] = 1; s.label_sizes[1] = 2; s.label_sizes[2] = 2; s.label_sizes[3] = 1;
 }
 
 void settings_load(AppSettings &s) {
@@ -39,6 +44,15 @@ void settings_load(AppSettings &s) {
         s.display_mode     = (DisplayMode)prefs.getUChar("dmode",  MODE_VOLUME_ONLY);
         s.sleep_enabled    = prefs.getBool("sleepen",    false);
         s.sleep_timeout    = prefs.getULong("sleeptm",   SLEEP_TIMEOUT_MS);
+
+        // Per-mode sizes
+        for (int i = 0; i < MODE_COUNT; i++) {
+            char vk[5], lk[5];
+            snprintf(vk, sizeof(vk), "vsz%d", i);
+            snprintf(lk, sizeof(lk), "lsz%d", i);
+            s.vol_sizes[i]   = prefs.getUChar(vk, s.vol_sizes[i]);
+            s.label_sizes[i] = prefs.getUChar(lk, s.label_sizes[i]);
+        }
 
         // Input names
         s.input_name_count = prefs.getUChar("incnt", 0);
@@ -70,6 +84,15 @@ void settings_save(const AppSettings &s) {
     prefs.putUChar("dmode",     (uint8_t)s.display_mode);
     prefs.putBool("sleepen",    s.sleep_enabled);
     prefs.putULong("sleeptm",   s.sleep_timeout);
+
+    // Per-mode sizes
+    for (int i = 0; i < MODE_COUNT; i++) {
+        char vk[5], lk[5];
+        snprintf(vk, sizeof(vk), "vsz%d", i);
+        snprintf(lk, sizeof(lk), "lsz%d", i);
+        prefs.putUChar(vk, s.vol_sizes[i]);
+        prefs.putUChar(lk, s.label_sizes[i]);
+    }
 
     // Input names
     prefs.putUChar("incnt", s.input_name_count);

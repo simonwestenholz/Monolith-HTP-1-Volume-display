@@ -132,6 +132,18 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
         <option value="3">Full Status</option>
       </select>
     </div>
+    <div class="field"><label>Volume Size</label>
+      <div class="slider-wrap">
+        <input type="range" id="volsize" min="1" max="5" step="1">
+        <span class="val" id="volsizeVal">3 (144px)</span>
+      </div>
+    </div>
+    <div class="field"><label>Label Size</label>
+      <div class="slider-wrap">
+        <input type="range" id="labelsize" min="1" max="3" step="1">
+        <span class="val" id="labelsizeVal">1 (26px)</span>
+      </div>
+    </div>
     <div class="field"><label>Color Theme</label>
       <div class="themes" id="themeRow">
         <div class="swatch" data-t="0" style="background:#fff" title="White"></div>
@@ -175,6 +187,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
 
 <script>
 let currentTheme=0;
+let volSizes=[5,4,4,4];
+let labelSizes=[1,2,2,1];
 const $=id=>document.getElementById(id);
 
 function setTheme(t){
@@ -189,6 +203,25 @@ document.querySelectorAll('.swatch').forEach(s=>{
 
 $('bright').oninput=function(){$('brightVal').textContent=this.value};
 $('dimbrt').oninput=function(){$('dimbrtVal').textContent=this.value};
+
+function volSizeLabel(v){return v+' ('+v*48+'px)'}
+function labelSizeLabel(v){return v+' ('+v*26+'px)'}
+function updateSizeSliders(){
+  var m=parseInt($('dmode').value);
+  $('volsize').value=volSizes[m];
+  $('volsizeVal').textContent=volSizeLabel(volSizes[m]);
+  $('labelsize').value=labelSizes[m];
+  $('labelsizeVal').textContent=labelSizeLabel(labelSizes[m]);
+}
+$('volsize').oninput=function(){
+  var m=parseInt($('dmode').value),v=parseInt(this.value);
+  volSizes[m]=v;$('volsizeVal').textContent=volSizeLabel(v);
+};
+$('labelsize').oninput=function(){
+  var m=parseInt($('dmode').value),v=parseInt(this.value);
+  labelSizes[m]=v;$('labelsizeVal').textContent=labelSizeLabel(v);
+};
+$('dmode').addEventListener('change',updateSizeSliders);
 
 function addInputRow(code,name){
   const row=document.createElement('div');row.className='input-row';
@@ -228,6 +261,9 @@ function loadSettings(){
     $('dimtime').value=Math.round((d.dimtime||3000)/1000);
     $('dimbrt').value=d.dimbrt||7;$('dimbrtVal').textContent=d.dimbrt||7;
     $('dmode').value=d.dmode||0;
+    if(d.volSizes)volSizes=d.volSizes.slice();
+    if(d.labelSizes)labelSizes=d.labelSizes.slice();
+    updateSizeSliders();
     setTheme(d.theme||0);
     $('sleepen').checked=!!d.sleepen;
     $('sleeptm').value=Math.round((d.sleeptm||60000)/1000);
@@ -247,6 +283,8 @@ function saveSettings(){
     dimtime:parseInt($('dimtime').value)*1000,
     dimbrt:parseInt($('dimbrt').value),
     dmode:parseInt($('dmode').value),
+    volSizes:volSizes,
+    labelSizes:labelSizes,
     theme:currentTheme,
     sleepen:$('sleepen').checked,
     sleeptm:parseInt($('sleeptm').value)*1000,

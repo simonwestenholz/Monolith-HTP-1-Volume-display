@@ -6,7 +6,7 @@
 // ============================================================
 
 // --- Firmware ---
-#define FW_VERSION        "1.0.1"
+#define FW_VERSION        "1.0.2"
 #define HOSTNAME          "htp1-display"
 
 // --- Display Hardware (RM67162 AMOLED, 536x240) ---

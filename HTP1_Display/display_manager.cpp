@@ -111,6 +111,9 @@ void display_init() {
 void display_render(const HTP1State &state, const AppSettings &settings) {
     ColorTheme theme = settings.color_theme;
     DisplayMode mode = settings.display_mode;
+    uint8_t volSize   = settings.vol_sizes[mode];
+    uint8_t labelSize = settings.label_sizes[mode];
+
     uint16_t fg = theme_color(theme);
     uint16_t dim = theme_dim(theme);
     uint16_t muteColor = 0xF800;  // Red for mute indication
@@ -120,8 +123,9 @@ void display_render(const HTP1State &state, const AppSettings &settings) {
     static unsigned long lastDebugRender = 0;
     if (millis() - lastDebugRender > 5000) {
         lastDebugRender = millis();
-        Serial.printf("[DISP] mode=%d theme=%d vol=%d input='%s'->'%s' codec='%s'\n",
+        Serial.printf("[DISP] mode=%d theme=%d vol=%d vsz=%d lsz=%d input='%s'->'%s' codec='%s'\n",
                       mode, theme, state.volume + state.volumeOffset,
+                      volSize, labelSize,
                       state.inputLabel, inputDisplay, state.codecName);
     }
 
@@ -129,69 +133,78 @@ void display_render(const HTP1State &state, const AppSettings &settings) {
 
     uint16_t volColor = state.muted ? muteColor : fg;
 
-    // Font 7 heights: size 5=240px, size 3=144px, size 2=96px
-    // Font 4 height at size 1 = ~26px
-    // Display: 536 x 240
+    // Font 7 height per textSize unit: 48px
+    // Font 4 height per textSize unit: ~26px
+    int volH   = volSize * 48;
+    int labelH = labelSize * 26;
 
     switch (mode) {
-        case MODE_VOLUME_ONLY:
-            // Full screen volume — matches original sketch
-            draw_volume(state, volColor, 0, 5);
+        case MODE_VOLUME_ONLY: {
+            int y = (DISPLAY_HEIGHT - volH) / 2;
+            draw_volume(state, volColor, y, volSize);
             break;
+        }
 
-        case MODE_VOLUME_SOURCE:
-            // Source label at top (~52px), volume below (144px)
-            draw_label(inputDisplay, dim, 10, 0, 4, 2);
-            draw_volume(state, volColor, 60, 3);
+        case MODE_VOLUME_SOURCE: {
+            draw_label(inputDisplay, dim, 10, 0, 4, labelSize);
+            int y = labelH + 4;
+            draw_volume(state, volColor, y, volSize);
             break;
+        }
 
         case MODE_VOLUME_CODEC: {
-            // Volume at top (144px), codec at bottom (~52px)
-            draw_volume(state, volColor, 0, 3);
+            draw_volume(state, volColor, 0, volSize);
+            // Codec / format anchored at bottom
             String codecLine = build_codec_string(state.codecName, state.programFormat);
             sprite.setTextDatum(BC_DATUM);
             // Auto-shrink if too wide
-            sprite.setTextSize(2);
+            sprite.setTextSize(labelSize);
             int cw = sprite.textWidth(codecLine, 4);
-            uint8_t csz = (cw > DISPLAY_WIDTH - 20) ? 1 : 2;
+            uint8_t csz = (cw > DISPLAY_WIDTH - 20 && labelSize > 1) ? labelSize - 1 : labelSize;
             draw_label(codecLine.c_str(), dim, DISPLAY_WIDTH / 2, DISPLAY_HEIGHT - 2, 4, csz);
             sprite.setTextDatum(TL_DATUM);
             break;
         }
 
         case MODE_FULL_STATUS: {
-            // Top row (~52px): source left, codec right
-            draw_label(inputDisplay, dim, 10, 0, 4, 2);
+            // Top row: source left, codec right
+            draw_label(inputDisplay, dim, 10, 0, 4, labelSize);
             {
                 String codec = build_codec_string(state.codecName, state.programFormat);
-                sprite.setTextSize(2);
+                sprite.setTextSize(labelSize);
                 int codecWidth = sprite.textWidth(codec, 4);
                 // Auto-shrink if codec overlaps with input label
-                uint8_t csz = (codecWidth > DISPLAY_WIDTH / 2) ? 1 : 2;
-                if (csz == 1) {
-                    sprite.setTextSize(1);
+                uint8_t csz = (codecWidth > DISPLAY_WIDTH / 2 && labelSize > 1) ? labelSize - 1 : labelSize;
+                if (csz < labelSize) {
+                    sprite.setTextSize(csz);
                     codecWidth = sprite.textWidth(codec, 4);
                 }
                 draw_label(codec.c_str(), dim, DISPLAY_WIDTH - codecWidth - 10, 0, 4, csz);
             }
 
-            // Center: volume (96px)
-            draw_volume(state, volColor, 72, 2);
+            // Volume: centered between top and bottom labels
+            int topY = labelH + 2;
+            int botLabelY = DISPLAY_HEIGHT - labelH;
+            int volY = topY + (botLabelY - topY - volH) / 2;
+            if (volY < topY) volY = topY;
+            draw_volume(state, volColor, volY, volSize);
 
-            // Bottom row (~26px): surround left, listening format right
-            draw_label(state.surroundMode, dim, 10, DISPLAY_HEIGHT - 26, 4, 1);
+            // Bottom row: surround left, listening format right
+            draw_label(state.surroundMode, dim, 10, botLabelY, 4, labelSize);
             {
-                sprite.setTextSize(1);
+                sprite.setTextSize(labelSize);
                 int lfWidth = sprite.textWidth(state.listeningFormat, 4);
                 draw_label(state.listeningFormat, dim,
-                           DISPLAY_WIDTH - lfWidth - 10, DISPLAY_HEIGHT - 26, 4, 1);
+                           DISPLAY_WIDTH - lfWidth - 10, botLabelY, 4, labelSize);
             }
             break;
         }
 
-        default:
-            draw_volume(state, volColor, 0, 5);
+        default: {
+            int y = (DISPLAY_HEIGHT - volH) / 2;
+            draw_volume(state, volColor, y, volSize);
             break;
+        }
     }
 
     // Power-off indicator
