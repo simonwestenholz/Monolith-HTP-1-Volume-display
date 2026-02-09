@@ -78,6 +78,8 @@ The original single-file sketch is preserved in the root as `LilygoAMOLED_websoc
 
 ## Web Interface
 
+![Web UI screenshot](webui-screenshot.png)
+
 The built-in web UI provides:
 
 - **Live status bar** — WiFi signal, HTP-1 connection, current volume/input/codec

@@ -20,14 +20,14 @@ static uint16_t theme_color(ColorTheme t) {
 }
 
 static uint16_t theme_dim(ColorTheme t) {
-    // Dimmer variant for secondary text
+    // Secondary text color — visible but subdued
     switch (t) {
-        case THEME_GREEN: return 0x0400;
-        case THEME_AMBER: return 0x7980;
-        case THEME_BLUE:  return 0x0010;
-        case THEME_RED:   return 0x7800;
-        case THEME_CYAN:  return 0x0410;
-        default:          return 0x7BEF;  // Grey
+        case THEME_GREEN: return 0x03E0;  // Medium green
+        case THEME_AMBER: return 0xC560;  // Medium amber
+        case THEME_BLUE:  return 0x3BFF;  // Light blue
+        case THEME_RED:   return 0xC000;  // Medium red
+        case THEME_CYAN:  return 0x0577;  // Medium cyan
+        default:          return 0xAD55;  // Light grey
     }
 }
 
@@ -37,21 +37,56 @@ static void push() {
                    (uint16_t*)sprite.getPointer());
 }
 
-// --- Draw volume string, centered ---
-static void draw_volume_centered(const HTP1State &state, uint16_t color, int y) {
+// --- Draw volume string ---
+// textSize: 5=240px (full height), 3=144px, 2=96px with font 7
+static void draw_volume(const HTP1State &state, uint16_t color, int y, uint8_t textSize) {
     sprite.setTextColor(color, TFT_BLACK);
 
     if (state.muted) {
-        sprite.setTextSize(4);
+        // Font 7 is 7-segment (digits only) — use font 4 for "MUTE"
         sprite.setTextDatum(TC_DATUM);
-        sprite.drawString("MUTE", DISPLAY_WIDTH / 2, y, 7);
+        sprite.setTextSize(textSize > 3 ? 4 : textSize);
+        sprite.drawString("MUTE", DISPLAY_WIDTH / 2, y, 4);
     } else {
         String vol = String(state.volume + state.volumeOffset);
-        sprite.setTextSize(5);
         sprite.setTextDatum(TC_DATUM);
+        sprite.setTextSize(textSize);
         sprite.drawString(vol, DISPLAY_WIDTH / 2, y, 7);
     }
     sprite.setTextDatum(TL_DATUM);  // Reset
+}
+
+// --- Build and abbreviate codec display string ---
+static String build_codec_string(const char* codecName, const char* programFormat) {
+    String s(codecName);
+    if (strlen(programFormat) > 0) {
+        s += "  ";
+        s += programFormat;
+    }
+    // Abbreviate — order matters (longest/most specific first)
+    s.replace("Object Audio", "");
+    s.replace("(ATMOS)", "Atmos");
+    s.replace("Dolby TrueHD", "TrueHD");
+    s.replace("DTS-HD Master Audio", "DTS-HD MA");
+    s.replace("DTS Legacy", "DTS");
+    s.replace("DTS:X Object", "DTS:X");
+    s.replace("Dolby Digital Plus", "DD+");
+    s.replace("Dolby Digital", "DD");
+    // Clean up double spaces from removals
+    s.replace("  ", " ");
+    s.trim();
+    return s;
+}
+
+// --- Lookup friendly input name ---
+static const char* lookup_input_name(const char* code, const AppSettings &settings) {
+    for (uint8_t i = 0; i < settings.input_name_count && i < MAX_INPUT_NAMES; i++) {
+        if (strcmp(code, settings.input_names[i].code) == 0 &&
+            strlen(settings.input_names[i].name) > 0) {
+            return settings.input_names[i].name;
+        }
+    }
+    return code;  // Fall back to raw code
 }
 
 // --- Draw secondary info line ---
@@ -73,67 +108,89 @@ void display_init() {
     lcd_brightness(BRIGHTNESS_PRESETS[BRIGHTNESS_DEFAULT]);
 }
 
-void display_render(const HTP1State &state, ColorTheme theme, DisplayMode mode) {
+void display_render(const HTP1State &state, const AppSettings &settings) {
+    ColorTheme theme = settings.color_theme;
+    DisplayMode mode = settings.display_mode;
     uint16_t fg = theme_color(theme);
     uint16_t dim = theme_dim(theme);
     uint16_t muteColor = 0xF800;  // Red for mute indication
+
+    const char* inputDisplay = lookup_input_name(state.inputLabel, settings);
+
+    static unsigned long lastDebugRender = 0;
+    if (millis() - lastDebugRender > 5000) {
+        lastDebugRender = millis();
+        Serial.printf("[DISP] mode=%d theme=%d vol=%d input='%s'->'%s' codec='%s'\n",
+                      mode, theme, state.volume + state.volumeOffset,
+                      state.inputLabel, inputDisplay, state.codecName);
+    }
 
     sprite.fillSprite(TFT_BLACK);
 
     uint16_t volColor = state.muted ? muteColor : fg;
 
+    // Font 7 heights: size 5=240px, size 3=144px, size 2=96px
+    // Font 4 height at size 1 = ~26px
+    // Display: 536 x 240
+
     switch (mode) {
         case MODE_VOLUME_ONLY:
-            draw_volume_centered(state, volColor, 50);
+            // Full screen volume — matches original sketch
+            draw_volume(state, volColor, 0, 5);
             break;
 
         case MODE_VOLUME_SOURCE:
-            draw_label(state.inputLabel, dim, 10, 8, 4, 1);
-            draw_volume_centered(state, volColor, 60);
+            // Source label at top (~52px), volume below (144px)
+            draw_label(inputDisplay, dim, 10, 0, 4, 2);
+            draw_volume(state, volColor, 60, 3);
             break;
 
         case MODE_VOLUME_CODEC: {
-            draw_volume_centered(state, volColor, 30);
-            // Codec / format at bottom
-            String codecLine = String(state.codecName);
-            if (strlen(state.programFormat) > 0) {
-                codecLine += "  ";
-                codecLine += state.programFormat;
-            }
+            // Volume at top (144px), codec at bottom (~52px)
+            draw_volume(state, volColor, 0, 3);
+            String codecLine = build_codec_string(state.codecName, state.programFormat);
             sprite.setTextDatum(BC_DATUM);
-            draw_label(codecLine.c_str(), dim, DISPLAY_WIDTH / 2, DISPLAY_HEIGHT - 10, 4, 1);
+            // Auto-shrink if too wide
+            sprite.setTextSize(2);
+            int cw = sprite.textWidth(codecLine, 4);
+            uint8_t csz = (cw > DISPLAY_WIDTH - 20) ? 1 : 2;
+            draw_label(codecLine.c_str(), dim, DISPLAY_WIDTH / 2, DISPLAY_HEIGHT - 2, 4, csz);
             sprite.setTextDatum(TL_DATUM);
             break;
         }
 
         case MODE_FULL_STATUS: {
-            // Top: source + codec
-            draw_label(state.inputLabel, dim, 10, 5, 4, 1);
+            // Top row (~52px): source left, codec right
+            draw_label(inputDisplay, dim, 10, 0, 4, 2);
             {
-                String codec = String(state.codecName);
-                if (strlen(state.programFormat) > 0) {
-                    codec += "  ";
-                    codec += state.programFormat;
-                }
+                String codec = build_codec_string(state.codecName, state.programFormat);
+                sprite.setTextSize(2);
                 int codecWidth = sprite.textWidth(codec, 4);
-                draw_label(codec.c_str(), dim, DISPLAY_WIDTH - codecWidth - 10, 5, 4, 1);
+                // Auto-shrink if codec overlaps with input label
+                uint8_t csz = (codecWidth > DISPLAY_WIDTH / 2) ? 1 : 2;
+                if (csz == 1) {
+                    sprite.setTextSize(1);
+                    codecWidth = sprite.textWidth(codec, 4);
+                }
+                draw_label(codec.c_str(), dim, DISPLAY_WIDTH - codecWidth - 10, 0, 4, csz);
             }
 
-            // Center: volume
-            draw_volume_centered(state, volColor, 55);
+            // Center: volume (96px)
+            draw_volume(state, volColor, 72, 2);
 
-            // Bottom: surround mode + listening format
-            draw_label(state.surroundMode, dim, 10, DISPLAY_HEIGHT - 28, 4, 1);
+            // Bottom row (~26px): surround left, listening format right
+            draw_label(state.surroundMode, dim, 10, DISPLAY_HEIGHT - 26, 4, 1);
             {
+                sprite.setTextSize(1);
                 int lfWidth = sprite.textWidth(state.listeningFormat, 4);
                 draw_label(state.listeningFormat, dim,
-                           DISPLAY_WIDTH - lfWidth - 10, DISPLAY_HEIGHT - 28, 4, 1);
+                           DISPLAY_WIDTH - lfWidth - 10, DISPLAY_HEIGHT - 26, 4, 1);
             }
             break;
         }
 
         default:
-            draw_volume_centered(state, volColor, 50);
+            draw_volume(state, volColor, 0, 5);
             break;
     }
 

@@ -10,7 +10,7 @@ struct HTP1State;
 void display_init();
 
 // Render current HTP-1 state using the given theme & mode
-void display_render(const HTP1State &state, ColorTheme theme, DisplayMode mode);
+void display_render(const HTP1State &state, const AppSettings &settings);
 
 // Show a simple centered message (for splash / status / errors)
 void display_show_message(const char* line1, const char* line2 = nullptr,

@@ -54,24 +54,34 @@ static void handleGetSettings(AsyncWebServerRequest *req) {
     doc["sleeptm"]  = cfg->sleep_timeout;
     doc["fw"]       = FW_VERSION;
 
+    // Input names
+    JsonArray inputs = doc["inputs"].to<JsonArray>();
+    for (uint8_t i = 0; i < cfg->input_name_count && i < MAX_INPUT_NAMES; i++) {
+        JsonObject inp = inputs.add<JsonObject>();
+        inp["code"] = cfg->input_names[i].code;
+        inp["name"] = cfg->input_names[i].name;
+    }
+
     String json;
     serializeJson(doc, json);
     req->send(200, "application/json", json);
 }
 
-// --- POST /settings — update settings ---
-static void handlePostSettings(AsyncWebServerRequest *req, uint8_t *data, size_t len, size_t index, size_t total) {
+// --- POST /settings — body handler (accumulates JSON) ---
+static String settingsBody;
+
+static void handlePostSettingsBody(AsyncWebServerRequest *req, uint8_t *data, size_t len, size_t index, size_t total) {
+    if (index == 0) settingsBody = "";
+    settingsBody += String((char*)data).substring(0, len);
+}
+
+// --- POST /settings — request handler (processes after body received) ---
+static void handlePostSettingsRequest(AsyncWebServerRequest *req) {
     if (!cfg) { req->send(500); return; }
 
-    // Accumulate body (may arrive in chunks)
-    static String body;
-    if (index == 0) body = "";
-    body += String((char*)data).substring(0, len);
-    if (index + len < total) return;  // Wait for more chunks
-
     JsonDocument doc;
-    DeserializationError err = deserializeJson(doc, body);
-    body = "";
+    DeserializationError err = deserializeJson(doc, settingsBody);
+    settingsBody = "";
 
     if (err) {
         req->send(400, "application/json", "{\"ok\":false,\"error\":\"bad json\"}");
@@ -114,6 +124,23 @@ static void handlePostSettings(AsyncWebServerRequest *req, uint8_t *data, size_t
         cfg->sleep_enabled = doc["sleepen"];
     if (doc["sleeptm"].is<int>())
         cfg->sleep_timeout = doc["sleeptm"];
+
+    // Input names
+    if (doc["inputs"].is<JsonArray>()) {
+        JsonArray inputs = doc["inputs"];
+        cfg->input_name_count = 0;
+        for (JsonObject inp : inputs) {
+            if (cfg->input_name_count >= MAX_INPUT_NAMES) break;
+            const char* code = inp["code"] | "";
+            const char* name = inp["name"] | "";
+            if (strlen(code) == 0) continue;
+            strlcpy(cfg->input_names[cfg->input_name_count].code, code,
+                    sizeof(cfg->input_names[0].code));
+            strlcpy(cfg->input_names[cfg->input_name_count].name, name,
+                    sizeof(cfg->input_names[0].name));
+            cfg->input_name_count++;
+        }
+    }
 
     settings_save(*cfg);
     if (settingsChangedCb) settingsChangedCb();
@@ -166,13 +193,7 @@ void webserver_begin(AppSettings *settings, void (*onSettingsChanged)()) {
     server.on("/", HTTP_GET, handleRoot);
     server.on("/status", HTTP_GET, handleStatus);
     server.on("/settings", HTTP_GET, handleGetSettings);
-
-    // POST /settings with JSON body
-    server.onRequestBody([](AsyncWebServerRequest *req, uint8_t *data, size_t len, size_t index, size_t total) {
-        if (req->url() == "/settings" && req->method() == HTTP_POST) {
-            handlePostSettings(req, data, len, index, total);
-        }
-    });
+    server.on("/settings", HTTP_POST, handlePostSettingsRequest, nullptr, handlePostSettingsBody);
 
     server.on("/update", HTTP_POST, handleOTADone, handleOTAUpload);
 

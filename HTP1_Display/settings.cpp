@@ -18,6 +18,8 @@ static void apply_defaults(AppSettings &s) {
     s.display_mode     = MODE_VOLUME_ONLY;
     s.sleep_enabled    = false;
     s.sleep_timeout    = SLEEP_TIMEOUT_MS;
+    s.input_name_count = 0;
+    memset(s.input_names, 0, sizeof(s.input_names));
 }
 
 void settings_load(AppSettings &s) {
@@ -37,6 +39,17 @@ void settings_load(AppSettings &s) {
         s.display_mode     = (DisplayMode)prefs.getUChar("dmode",  MODE_VOLUME_ONLY);
         s.sleep_enabled    = prefs.getBool("sleepen",    false);
         s.sleep_timeout    = prefs.getULong("sleeptm",   SLEEP_TIMEOUT_MS);
+
+        // Input names
+        s.input_name_count = prefs.getUChar("incnt", 0);
+        if (s.input_name_count > MAX_INPUT_NAMES) s.input_name_count = MAX_INPUT_NAMES;
+        for (uint8_t i = 0; i < s.input_name_count; i++) {
+            char keyC[6], keyN[6];
+            snprintf(keyC, sizeof(keyC), "in%dc", i);
+            snprintf(keyN, sizeof(keyN), "in%dn", i);
+            strlcpy(s.input_names[i].code, prefs.getString(keyC, "").c_str(), sizeof(s.input_names[i].code));
+            strlcpy(s.input_names[i].name, prefs.getString(keyN, "").c_str(), sizeof(s.input_names[i].name));
+        }
     }
 
     prefs.end();
@@ -57,6 +70,16 @@ void settings_save(const AppSettings &s) {
     prefs.putUChar("dmode",     (uint8_t)s.display_mode);
     prefs.putBool("sleepen",    s.sleep_enabled);
     prefs.putULong("sleeptm",   s.sleep_timeout);
+
+    // Input names
+    prefs.putUChar("incnt", s.input_name_count);
+    for (uint8_t i = 0; i < s.input_name_count && i < MAX_INPUT_NAMES; i++) {
+        char keyC[6], keyN[6];
+        snprintf(keyC, sizeof(keyC), "in%dc", i);
+        snprintf(keyN, sizeof(keyN), "in%dn", i);
+        prefs.putString(keyC, s.input_names[i].code);
+        prefs.putString(keyN, s.input_names[i].name);
+    }
 
     prefs.end();
 }

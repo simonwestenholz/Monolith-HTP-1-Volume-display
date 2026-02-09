@@ -61,6 +61,11 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
 .msg{padding:8px 12px;border-radius:4px;margin-top:8px;display:none;font-size:0.85em}
 .msg.ok{display:block;background:#1a3a2a;color:#4ecca3;border:1px solid #4ecca3}
 .msg.err{display:block;background:#3a1a1a;color:#e94560;border:1px solid #e94560}
+.input-row{display:flex;gap:8px;align-items:center;margin-bottom:6px}
+.input-row input{padding:8px 10px;background:#1a1a2e;border:1px solid #0f3460;
+  border-radius:4px;color:#e0e0e0;font-size:0.9em}
+.input-row input.code{width:80px}.input-row input.name{flex:1}
+.input-row .del{background:none;border:none;color:#e94560;cursor:pointer;font-size:1.2em;padding:4px 8px}
 @media(max-width:480px){.field{flex-direction:column;align-items:flex-start}
   .field label{min-width:auto}}
 </style>
@@ -92,6 +97,14 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
     <div class="field"><label>IP Address</label><input type="text" id="htp1ip" placeholder="192.168.1.x"></div>
     <div class="field"><label>Port</label><input type="number" id="htp1port" min="1" max="65535"></div>
     <div class="field"><label>Volume Offset</label><input type="number" id="voloff" min="-20" max="20"></div>
+  </div>
+
+  <!-- Input Names -->
+  <div class="card">
+    <h2>Input Names</h2>
+    <p style="font-size:0.8em;color:#888;margin-bottom:10px">Map HTP-1 input codes (e.g. h1, h2, usb) to friendly names</p>
+    <div id="inputRows"></div>
+    <button class="btn btn-secondary" style="margin-top:8px" onclick="addInputRow('','')">+ Add Input</button>
   </div>
 
   <!-- Display Settings -->
@@ -177,6 +190,33 @@ document.querySelectorAll('.swatch').forEach(s=>{
 $('bright').oninput=function(){$('brightVal').textContent=this.value};
 $('dimbrt').oninput=function(){$('dimbrtVal').textContent=this.value};
 
+function addInputRow(code,name){
+  const row=document.createElement('div');row.className='input-row';
+  row.innerHTML='<input class="code" type="text" maxlength="7" placeholder="h1" value="'+
+    code.replace(/"/g,'&quot;')+'"><input class="name" type="text" maxlength="31" placeholder="Apple TV" value="'+
+    name.replace(/"/g,'&quot;')+'"><button class="del" title="Remove">&times;</button>';
+  row.querySelector('.del').onclick=function(){row.remove()};
+  $('inputRows').appendChild(row);
+}
+
+function getInputNames(){
+  const rows=document.querySelectorAll('#inputRows .input-row');
+  const arr=[];
+  rows.forEach(r=>{
+    const c=r.querySelector('.code').value.trim();
+    const n=r.querySelector('.name').value.trim();
+    if(c)arr.push({code:c,name:n});
+  });
+  return arr;
+}
+
+function loadInputNames(inputs){
+  $('inputRows').innerHTML='';
+  if(inputs&&inputs.length){
+    inputs.forEach(i=>addInputRow(i.code||'',i.name||''));
+  }
+}
+
 function loadSettings(){
   fetch('/settings').then(r=>r.json()).then(d=>{
     $('ssid').value=d.ssid||'';
@@ -192,6 +232,7 @@ function loadSettings(){
     $('sleepen').checked=!!d.sleepen;
     $('sleeptm').value=Math.round((d.sleeptm||60000)/1000);
     $('fw').textContent='v'+(d.fw||'?');
+    loadInputNames(d.inputs);
   }).catch(()=>{});
 }
 
@@ -208,7 +249,8 @@ function saveSettings(){
     dmode:parseInt($('dmode').value),
     theme:currentTheme,
     sleepen:$('sleepen').checked,
-    sleeptm:parseInt($('sleeptm').value)*1000
+    sleeptm:parseInt($('sleeptm').value)*1000,
+    inputs:getInputNames()
   });
   fetch('/settings',{method:'POST',headers:{'Content-Type':'application/json'},body})
     .then(r=>r.json()).then(d=>{

@@ -22,6 +22,14 @@ enum DisplayMode : uint8_t {
     MODE_COUNT
 };
 
+// --- Input Name Mapping ---
+#define MAX_INPUT_NAMES 8
+
+struct InputName {
+    char code[8];   // HTP-1 input code, e.g. "h1", "usb"
+    char name[32];  // Friendly name, e.g. "Apple TV"
+};
+
 // --- Persistent Settings ---
 struct AppSettings {
     // WiFi
@@ -43,6 +51,10 @@ struct AppSettings {
     // Power
     bool sleep_enabled;
     uint32_t sleep_timeout;     // ms
+
+    // Input name mapping
+    InputName input_names[MAX_INPUT_NAMES];
+    uint8_t input_name_count;
 };
 
 // Load settings from NVS (fills defaults if no saved data)

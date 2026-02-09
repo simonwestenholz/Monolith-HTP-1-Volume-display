@@ -17,9 +17,9 @@
 
 // --- Global State ---
 static AppSettings settings;
-static bool ledOn = false;
 static bool displayAsleep = false;
 static bool apMode = false;
+static volatile bool settingsChangedFlag = false;  // Set by web server callback, handled in loop
 
 // Timing
 static unsigned long lastActivityTime = 0;   // Last HTP-1 data or button press
@@ -41,13 +41,17 @@ static void check_pending_save() {
 }
 
 // --- Settings Changed Callback (from web server) ---
+// Runs in async_tcp task context — must NOT do SPI/display work here
+// or the task watchdog will trigger. Just set a flag for the main loop.
 static void on_settings_changed() {
-    // Apply display settings immediately
+    settingsChangedFlag = true;
+}
+
+// --- Apply settings changes from the main loop ---
+static void apply_settings_change() {
     display_set_brightness(BRIGHTNESS_PRESETS[settings.brightness_level]);
-
-    // Update HTP-1 target
     htp1_set_target(settings.htp1_ip, settings.htp1_port, settings.volume_offset);
-
+    display_render(htp1_get_state(), settings);
     lastActivityTime = millis();
 }
 
@@ -151,7 +155,7 @@ void setup() {
         display_show_message("Connected", WiFi.localIP().toString().c_str(), 0x07E0);
         delay(1000);
         // Render initial display
-        display_render(htp1_get_state(), settings.color_theme, settings.display_mode);
+        display_render(htp1_get_state(), settings);
     } else {
         String info = WiFi.localIP().toString();
         display_show_message("Waiting for HTP-1", info.c_str(), 0xFBE0);
@@ -164,6 +168,12 @@ void setup() {
 void loop() {
     unsigned long now = millis();
 
+    // --- Web UI settings changed (deferred from async_tcp context) ---
+    if (settingsChangedFlag) {
+        settingsChangedFlag = false;
+        apply_settings_change();
+    }
+
     // --- Button Handling ---
     ButtonEvent btn = buttons_poll();
     if (btn != BTN_NONE) {
@@ -171,7 +181,7 @@ void loop() {
 
         switch (btn) {
             case BTN1_SHORT:
-                // Cycle brightness
+                // Cycle on-brightness
                 settings.brightness_level++;
                 if (settings.brightness_level >= BRIGHTNESS_LEVELS)
                     settings.brightness_level = 0;
@@ -182,14 +192,18 @@ void loop() {
             case BTN1_LONG:
                 // Cycle display mode
                 settings.display_mode = (DisplayMode)((settings.display_mode + 1) % MODE_COUNT);
-                display_render(htp1_get_state(), settings.color_theme, settings.display_mode);
+                display_render(htp1_get_state(), settings);
                 schedule_save();
                 break;
 
             case BTN2_SHORT:
-                // Toggle LED
-                ledOn = !ledOn;
-                digitalWrite(PIN_LED, ledOn);
+                // Cycle dim-brightness
+                settings.dim_brightness += 5;
+                if (settings.dim_brightness > 60)
+                    settings.dim_brightness = 1;
+                // Preview the dim brightness briefly
+                display_set_brightness(settings.dim_brightness);
+                schedule_save();
                 break;
 
             case BTN2_LONG:
@@ -211,11 +225,13 @@ void loop() {
     bool newData = htp1_poll();
     if (newData) {
         wake_display();
-        display_render(htp1_get_state(), settings.color_theme, settings.display_mode);
+        display_render(htp1_get_state(), settings);
         htp1_clear_changed();
     }
 
     // --- Auto-dim ---
+    // Re-read millis so it's never behind lastActivityTime (set by wake_display)
+    now = millis();
     if (!displayAsleep) {
         unsigned long elapsed = now - lastActivityTime;
 
@@ -231,11 +247,9 @@ void loop() {
     }
 
     // --- Periodic re-render (every 1s to catch web UI changes) ---
-    if (!displayAsleep && (now - lastRender > 1000)) {
+    if (!displayAsleep && !apMode && (now - lastRender > 1000)) {
         lastRender = now;
-        if (htp1_connected()) {
-            display_render(htp1_get_state(), settings.color_theme, settings.display_mode);
-        }
+        display_render(htp1_get_state(), settings);
     }
 
     // --- Delayed NVS save ---
