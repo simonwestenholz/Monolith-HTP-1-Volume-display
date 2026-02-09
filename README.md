@@ -9,37 +9,52 @@ Connects to the HTP-1 via WebSocket and displays real-time volume, input source,
 - **Real-time volume display** with configurable reference level offset
 - **4 display modes**: Volume Only, Volume + Source, Volume + Codec, Full Status
 - **6 color themes**: White, Green, Amber, Blue, Red, Cyan
+- **Input name mapping** — assign friendly names to HTP-1 input codes (e.g. `h1` → "Apple TV") via the web UI
 - **Mute/standby indicators** — red MUTE overlay and STANDBY label
+- **Codec abbreviation** — long codec names are automatically shortened (e.g. "Dolby TrueHD (ATMOS)" → "TrueHD Atmos")
 - **Web configuration UI** — dark-themed responsive page for all settings
 - **OTA firmware updates** — upload `.bin` files through the web interface
-- **Auto-dim** — configurable timeout dims the display to save power
+- **Auto-dim** — configurable timeout dims the display to save power, wakes to full brightness on volume change
 - **Sleep mode** — display turns off after extended idle, wakes on new data or button press
+- **Dual data sources** — WebSocket for real-time updates + HTTP polling every 3s for full state refresh
 - **WiFi AP fallback** — if WiFi connection fails, starts a `HTP1-Display-Setup` access point for initial configuration
 - **mDNS** — reachable at `http://htp1-display.local/`
-- **Persistent settings** — all configuration saved to NVS flash
+- **Persistent settings** — all configuration saved to NVS flash (input names, themes, brightness, etc.)
 - **Auto-reconnect** — reconnects to HTP-1 automatically on disconnect (5s retry)
 
 ## Hardware
 
 - [LilyGo T-Display-S3 AMOLED](https://www.lilygo.cc/products/t-display-s3-amoled)
-- Button 1 (GPIO 0): short press = toggle LED, long press = toggle sleep
-- Button 2 (GPIO 21): short press = cycle brightness, long press = cycle display mode
+- Button 1 (GPIO 0): short press = cycle brightness, long press = cycle display mode
+- Button 2 (GPIO 21): short press = cycle dim brightness, long press = toggle sleep
 
-## HTP-1 Data Parsed
+## Display Modes
 
-The display reads the following fields from HTP-1 WebSocket `msoupdate` messages:
+Cycle modes with a long press on Button 1, or select from the web UI.
 
-| Field | JSON Path |
-|-------|-----------|
-| Volume | `/volume` |
-| Muted | `/muted` |
-| Input ID | `/input` |
-| Input Label | `/inputLabel` |
-| Codec | `/status/DECSourceProgram` |
-| Program Format | `/status/DECProgramFormat` |
-| Surround Mode | `/status/SurroundMode` |
-| Listening Format | `/status/ENCListeningFormat` |
-| Power State | `/powerIsOn` |
+| Mode | Layout |
+|------|--------|
+| **Volume Only** | Full-screen volume number (7-segment font, 240px tall) |
+| **Volume + Source** | Input name at top, volume below |
+| **Volume + Codec** | Volume at top, codec/format at bottom (auto-shrinks if too wide) |
+| **Full Status** | Input + codec on top row, volume in center, surround mode + listening format on bottom row |
+
+All modes show a red **MUTE** label when muted and a **STANDBY** label when the HTP-1 is powered off. If input name mappings are configured, friendly names are shown instead of raw HTP-1 codes in all modes that display the source.
+
+## HTP-1 Data
+
+The display reads the following fields from HTP-1 via WebSocket (`msoupdate` patches) and HTTP (`/ircmd` polling):
+
+| Field | WebSocket Path | HTTP (`/ircmd`) Key |
+|-------|---------------|---------------------|
+| Volume | `/volume` | `volume` |
+| Muted | `/muted` | `muted` |
+| Input Label | `/inputLabel` | `input` |
+| Codec | `/status/DECSourceProgram` | `status.DECSourceProgram` |
+| Program Format | `/status/DECProgramFormat` | `status.DECProgramFormat` |
+| Surround Mode | `/status/SurroundMode` | `status.SurroundMode` |
+| Listening Format | `/status/ENCListeningFormat` | `status.ENCListeningFormat` |
+| Power State | `/powerIsOn` | — |
 
 ## File Structure
 
@@ -82,9 +97,20 @@ The original single-file sketch is preserved in the root as `LilygoAMOLED_websoc
 
 The built-in web UI provides:
 
-- **Live status bar** — WiFi signal, HTP-1 connection, current volume/input/codec
+- **Live status bar** — WiFi signal strength, HTP-1 connection, current volume/input/codec
 - **WiFi settings** — SSID and password
 - **HTP-1 connection** — IP address, port, volume offset
-- **Display controls** — brightness slider, auto-dim timeout, color theme picker, display mode selector
+- **Input names** — map HTP-1 input codes to friendly display names (up to 8 mappings)
+- **Display controls** — brightness slider, auto-dim timeout and brightness, color theme picker, display mode selector
 - **Power management** — sleep enable/disable and timeout
 - **Firmware update** — drag-and-drop `.bin` upload with progress bar
+
+### REST API
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/` | GET | Web configuration UI |
+| `/status` | GET | Live JSON status (WiFi, HTP-1 connection, volume, input, codec) |
+| `/settings` | GET | Current settings as JSON (password redacted) |
+| `/settings` | POST | Update settings (JSON body), returns `{"ok":true}` |
+| `/update` | POST | OTA firmware upload (multipart form with `.bin` file) |
